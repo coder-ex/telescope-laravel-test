@@ -1,0 +1,109 @@
+# для прод версии конфиг нужно переработать на уменьшение слоев
+FROM php:8.2-fpm
+
+# Install tools required for build stage
+RUN apt-get update && apt-get install -fyqq \
+    mc bash curl wget rsync ca-certificates openssl ssh git tzdata openntpd \
+    fontconfig libc6 unzip libxrender1 libfreetype6-dev libjpeg62-turbo-dev \
+    libpng-dev gnupg binutils-gold autoconf \
+    sendmail \
+    nmap net-tools tcpdump sudo nano htop \
+    g++ gcc gnupg libgcc1 linux-headers-amd64 make python3 \
+    libnss3
+
+# New node js install [https://github.com/nodesource/distributions#debian-versions]
+RUN mkdir -p /etc/apt/keyrings \
+    && apt-get update && apt-get install -y ca-certificates curl gnupg \
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | sudo tee /etc/apt/sources.list.d/nodesource.list \
+    && apt-get update && apt-get install -y nodejs
+
+# Install composer
+RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
+	&& php composer-setup.php \
+	&& php -r "unlink('composer-setup.php');" \
+	&& mkdir -p /usr/local/bin \
+	&& mv composer.phar /usr/local/bin/composer
+
+# Install the PHP bcmath extension
+RUN docker-php-ext-install bcmath
+
+# Install the PHP gmp extension
+RUN apt-get install -y --no-install-recommends \
+	libgmp-dev firebird-dev libib-util \
+    && docker-php-ext-install -j$(nproc) gmp
+
+# Install shmop - нам тут не нужно управлять памятью
+#RUN apt-get install -y \
+#    && docker-php-ext-configure shmop --enable-shmop \
+#    && docker-php-ext-install -j$(nproc) shmop \
+#    && docker-php-ext-enable shmop
+
+# Install opcache
+RUN apt-get install -y \
+    && docker-php-ext-install -j$(nproc) opcache \
+    && docker-php-ext-enable opcache
+
+# Install iconv
+RUN apt-get install -y \
+    && docker-php-ext-install -j$(nproc) iconv
+
+# Install libraries for compiling GD, then build it
+RUN apt-get install -y libfreetype6 libfreetype6-dev libpng16-16 libpng-dev libjpeg-dev libjpeg62-turbo libjpeg62-turbo-dev \
+    && docker-php-ext-configure gd --with-freetype=/usr/include/ --with-jpeg=/usr/include/ \
+    && docker-php-ext-install -j$(nproc) gd \
+    && apt-get remove -y libfreetype6-dev libpng-dev libjpeg62-turbo-dev
+
+# Install additional PHP libraries
+RUN apt-get install -y libonig-dev libpq-dev \
+    && docker-php-ext-install -j$(nproc) mbstring pdo pdo_pgsql pdo_mysql mysqli bcmath
+
+# Install libraries for Imagick support
+# - https://stackoverflow.com/questions/47258610/docker-php-7-1-imagick
+# - https://ourcodeworld.com/articles/read/645/how-to-install-imagick-for-php-7-in-ubuntu-16-04
+RUN apt-get clean && apt-get update && apt-get install -y libmagickwand-dev --no-install-recommends \
+    && pecl install imagick \
+    && docker-php-ext-enable imagick && rm -rf /var/lib/apt/lists/*
+
+# Add ZIP archives support
+RUN apt-get update && apt-get install -y libzip-dev zip \
+    && docker-php-ext-install -j$(nproc) zip \
+    && apt-get remove -fyqq libzip-dev
+
+# Install xdebug
+RUN pecl install xdebug \
+    && docker-php-ext-enable xdebug
+
+# Install octane swoole [НАМ ТУТ МОЖЕТ ПОТРЕБОВАТЬСЯ МНОГОПОТОЧНОСТЬ]
+# RUN pecl install swoole \
+#     && docker-php-ext-enable swoole
+
+# Create usermod && groupmod
+RUN usermod -u 1000 www-data \
+    && groupmod -g 1000 www-data \
+    && usermod -aG sudo,root www-data
+
+RUN echo "root:r12345" | chpasswd \
+    && echo "www-data:u12345" | chpasswd
+
+# Copy existing application directory permissions
+RUN chown www-data:www-data /var/www
+COPY --chown=www-data:www-data . /var/www/html
+
+COPY ./docker-php-ext-user.ini /usr/local/etc/php/conf.d/
+COPY ./php.ini /usr/local/etc/php/php.ini
+COPY ./docker-php-ext-opcache.ini /usr/local/etc/php/conf.d/docker-php-ext-opcache.ini
+# COPY ./docker-php-ext-swoole.ini /usr/local/etc/php/conf.d/docker-php-ext-swoole.ini
+COPY ./docker-php-ext-xdebug.ini /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+
+RUN mkdir /source
+WORKDIR /var/www/html
+COPY ./ /var/www/html
+
+# Change current user to www-data
+USER www-data
+#COPY ./auth.json.example /var/www/.config/composer/auth.json
+
+# Expose port 9000 and start php-fpm server
+EXPOSE 9000
+CMD ["php-fpm"]
