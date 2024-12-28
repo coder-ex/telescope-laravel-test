@@ -168,6 +168,9 @@ return [
         // App\Providers\BroadcastServiceProvider::class,
         App\Providers\EventServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
+
+        // service providers created by me
+        \App\Providers\EloquentMacroServiceProvider::class,  // клонирование ссылок в построителе Illuminate\Database\Eloquent\Builder
     ])->toArray(),
 
     /*

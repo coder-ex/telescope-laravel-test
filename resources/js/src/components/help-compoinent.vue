@@ -14,7 +14,12 @@
 
         <div class="card-body">
             <div class="alert alert-info" role="alert">
-                Простое уведомление info — проверьте!
+                1. Данные в созданном профиле должны быть актуальными для отправки тестовых сообщений<br>
+                2. Т.к. уведомления отправляются по аккаунту Telegram из профиля, то необходимо активировать бота @BarbarianEventHome_bot для пользователя<br>
+                прим: отправить любое тестовое уведомление боту
+                <a href="https://t.me/BarbarianEventHome_bot">
+                    <span>@BarbarianEventHome_bot</span>
+                </a>
             </div>
         </div>
     </div>

@@ -26,6 +26,12 @@
                         </tbody>
                     </table>
                 </div>
+
+                <div class="col-1">
+                    <a class="btn btn-sm text-bg-light" title="Описание работы с разделом" @click="showHelp">
+                        <i class="fa-solid fa-circle-info fa-xl" style="color: #74C0FC;"></i>
+                    </a>
+                </div>
             </diw>
 
             <widget-modal></widget-modal>
@@ -42,6 +48,7 @@
 import moment from 'moment-timezone';
 import { config, openModal, popModal, container } from 'jenesius-vue-modal';
 import EditProfile from './edit-profile.vue';
+import HelpComponent from './help-compoinent.vue';
 
 export default {
     name: 'main-component',
@@ -57,6 +64,19 @@ export default {
         this.fecthData();
     },
     methods: {
+        // модальное окно редактирования профиля
+        showHelp() {
+            config({
+                scrollLock: true,
+                animation: 'modal-list',
+                backgroundClose: true,
+                escClose: true
+            });
+            openModal(HelpComponent, {
+                title: 'Описание работы с разделом',
+                close: () => popModal(),
+            });
+        },
         // модальное окно редактирования профиля
         showEditProfile(item) {
             config({
